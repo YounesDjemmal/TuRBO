@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from gpytorch.constraints.constraints import Interval
 from gpytorch.distributions import MultivariateNormal
-from gpytorch.kernels import MaternKernel, ScaleKernel
+from gpytorch.kernels import MaternKernel, ScaleKernel, RBFKernel  # Added RBFKernel import
 from gpytorch.likelihoods import GaussianLikelihood
 from gpytorch.means import ConstantMean
 from gpytorch.mlls import ExactMarginalLogLikelihood
@@ -38,7 +38,7 @@ class GP(ExactGP):
         return MultivariateNormal(mean_x, covar_x)
 
 
-def train_gp(train_x, train_y, use_ard, num_steps, hypers={}):
+def train_gp(train_x, train_y, use_ard, num_steps, hypers={}, kernel_type="matern"):
     """Fit a GP model where train_x is in [0, 1]^d and train_y is standardized."""
     assert train_x.ndim == 2
     assert train_y.ndim == 1
@@ -63,6 +63,13 @@ def train_gp(train_x, train_y, use_ard, num_steps, hypers={}):
         outputscale_constraint=outputscale_constraint,
         ard_dims=ard_dims,
     ).to(device=train_x.device, dtype=train_x.dtype)
+    
+    # Choose the base kernel based on kernel_type and update model.covar_module accordingly.
+    if kernel_type == "rbf":
+        base_kernel = RBFKernel(lengthscale_constraint=lengthscale_constraint, ard_num_dims=ard_dims)
+    else:
+        base_kernel = MaternKernel(lengthscale_constraint=lengthscale_constraint, ard_num_dims=ard_dims, nu=2.5)
+    model.covar_module = ScaleKernel(base_kernel, outputscale_constraint=outputscale_constraint)
 
     # Find optimal model hyperparameters
     model.train()
